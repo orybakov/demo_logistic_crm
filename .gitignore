@@ -12,3 +12,4 @@ coverage/
 *.tgz
 .turbo/
 .cache/
+.next/
