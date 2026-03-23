@@ -11,6 +11,8 @@ RUN corepack enable && pnpm install --frozen-lockfile
 FROM base AS builder
 WORKDIR /app
 
+RUN corepack enable
+
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
@@ -21,6 +23,8 @@ WORKDIR /app
 
 ENV NODE_ENV=development
 ENV PORT=3001
+
+RUN corepack enable
 
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=builder /app/apps/api ./apps/api
