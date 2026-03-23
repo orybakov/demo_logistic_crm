@@ -28,10 +28,9 @@ RUN corepack enable
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/web/package.json ./apps/web/
 
-RUN corepack enable && pnpm install --frozen-lockfile --prod
+RUN corepack enable && HUSKY=0 pnpm install --frozen-lockfile --prod --ignore-scripts
 
 COPY --from=builder /app/apps/web/.next ./.next
-COPY --from=builder /app/apps/web/public ./public
 COPY --from=builder /app/apps/web/package.json ./package.json
 
 EXPOSE 3000

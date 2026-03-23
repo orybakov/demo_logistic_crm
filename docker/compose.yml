@@ -64,7 +64,7 @@ services:
     build:
       context: ..
       dockerfile: apps/web/Dockerfile
-      target: development
+      target: production
     container_name: logistics-web
     restart: unless-stopped
     environment:
