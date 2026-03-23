@@ -19,7 +19,7 @@ ENV DATABASE_URL=${DATABASE_URL}
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-RUN pnpm --filter @logistics-crm/api db:generate
+RUN printf 'DATABASE_URL=%s\n' "$DATABASE_URL" > apps/api/.env && pnpm --filter @logistics-crm/api db:generate && rm apps/api/.env
 RUN pnpm build --filter=@logistics-crm/api
 
 FROM base AS development
