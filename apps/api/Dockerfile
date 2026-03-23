@@ -13,6 +13,9 @@ WORKDIR /app
 
 RUN corepack enable
 
+ARG DATABASE_URL=postgresql://postgres:postgres@postgres:5432/logistics_crm
+ENV DATABASE_URL=${DATABASE_URL}
+
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
