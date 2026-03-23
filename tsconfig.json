@@ -1,0 +1,20 @@
+module.exports = {
+  root: true,
+  projects: [
+    {
+      extends: ['@logistics-crm/tsconfig/base.json'],
+      include: ['apps/**/*', 'packages/**/*'],
+      exclude: ['node_modules', 'dist'],
+    },
+    {
+      extends: ['@logistics-crm/tsconfig/react.json'],
+      include: ['apps/web/**/*'],
+      exclude: ['node_modules', 'dist'],
+    },
+    {
+      extends: ['@logistics-crm/tsconfig/nestjs.json'],
+      include: ['apps/api/**/*'],
+      exclude: ['node_modules', 'dist'],
+    },
+  ],
+};

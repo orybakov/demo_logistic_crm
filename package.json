@@ -1,0 +1,43 @@
+{
+  "name": "logistics-crm",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Enterprise logistics CRM system",
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "lint": "turbo lint",
+    "typecheck": "turbo typecheck",
+    "test": "turbo test",
+    "clean": "turbo clean && rm -rf node_modules",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,yml,yaml}\"",
+    "prepare": "husky install"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^18.6.0",
+    "@commitlint/config-conventional": "^18.6.0",
+    "@logistics-crm/eslint-config": "workspace:*",
+    "@logistics-crm/prettier-config": "workspace:*",
+    "@logistics-crm/tsconfig": "workspace:*",
+    "husky": "^9.0.5",
+    "lint-staged": "^15.2.0",
+    "prettier": "^3.2.4",
+    "turbo": "^1.12.2"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md,yml,yaml}": [
+      "prettier --write"
+    ]
+  },
+  "husky": {
+    "hooks": {
+      "commit-msg": "commitlint --edit $1",
+      "pre-commit": "pnpm lint-staged"
+    }
+  },
+  "packageManager": "pnpm@8.14.0"
+}

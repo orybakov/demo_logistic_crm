@@ -1,0 +1,9 @@
+{
+  "name": "@logistics-crm/tsconfig",
+  "version": "0.1.0",
+  "private": true,
+  "main": "base.json",
+  "dependencies": {
+    "typescript": "^5.3.3"
+  }
+}

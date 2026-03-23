@@ -1,0 +1,947 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserStatus {
+  active
+  blocked
+  deleted
+}
+
+enum RoleCode {
+  ADMIN
+  MANAGER
+  DISPATCHER
+  SALES
+  OPERATOR
+  DRIVER
+  CLIENT
+}
+
+enum PermissionSubject {
+  requests
+  orders
+  trips
+  clients
+  vehicles
+  drivers
+  reports
+  users
+  admin
+  locations
+  tariffs
+  notifications
+}
+
+enum PermissionAction {
+  create
+  read
+  update
+  delete
+  manage
+}
+
+model Filial {
+  id        String   @id @default(uuid())
+  name      String
+  shortName String?  @map("short_name")
+  code      String   @unique
+  address   String?
+  phone     String?
+  email     String?
+  isHead    Boolean  @default(false) @map("is_head")
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  users      User[]
+  clients    Client[]
+  vehicles   Vehicle[]
+  drivers    Driver[]
+  contracts  Contract[]
+  requests   Request[]
+  orders     Order[]
+  locations  Location[]
+  warehouses Warehouse[]
+  tariffs    Tariff[]
+  UserRole   UserRole[]
+  recipients Recipient[]
+
+  @@map("filials")
+}
+
+model User {
+  id                    String    @id @default(uuid())
+  email                 String    @unique
+  passwordHash          String    @map("password_hash")
+  firstName             String    @map("first_name")
+  lastName              String    @map("last_name")
+  middleName           String?   @map("middle_name")
+  phone                String?
+  avatarUrl             String?   @map("avatar_url")
+  filialId              String?   @map("filial_id")
+  isActive              Boolean   @default(true) @map("is_active")
+  isSuperadmin          Boolean   @default(false) @map("is_superadmin")
+  lastLoginAt           DateTime? @map("last_login_at")
+  notificationSettings   Json?     @map("notification_settings")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+  deletedAt             DateTime? @map("deleted_at")
+
+  filial                Filial?                @relation(fields: [filialId], references: [id])
+  roles                 UserRole[]
+  sessions              Session[]
+  auditLogs             AuditLog[]
+  notifications         Notification[]
+  ownedRequests         Request[]              @relation("RequestOwner")
+  createdRequests       Request[]              @relation("RequestCreator")
+  assignedOrders        Order[]                @relation("OrderAssignee")
+  createdOrders         Order[]                @relation("OrderCreator")
+  clientsCreated        Client[]               @relation("ClientCreator")
+  contractsCreated      Contract[]             @relation("ContractCreator")
+  tripsAssigned         Trip[]                 @relation("TripAssignee")
+  tripsCompleted        Trip[]                 @relation("TripCompleter")
+  checkpointsDone       Checkpoint[]
+  requestsStatusChanged RequestStatusHistory[]
+  tripsStatusChanged    TripStatusHistory[]
+  paymentsConfirmed     Payment[]              @relation("PaymentConfirmer")
+  paymentsCreated       Payment[]              @relation("PaymentCreator")
+  comments              Comment[]
+  filesUploaded         File[]
+
+  @@index([filialId])
+  @@index([isActive])
+  @@map("users")
+}
+
+model Role {
+  id          String   @id @default(uuid())
+  code        RoleCode @unique
+  name        String
+  description String?
+  isSystem    Boolean  @default(false) @map("is_system")
+  scope       String   @default("SYSTEM")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  permissions RolePermission[]
+  users       UserRole[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String            @id @default(uuid())
+  subject     PermissionSubject
+  action      PermissionAction
+  name        String
+  description String?
+  isActive    Boolean           @default(true) @map("is_active")
+  createdAt   DateTime          @default(now()) @map("created_at")
+
+  roles RolePermission[]
+
+  @@unique([subject, action])
+  @@map("permissions")
+}
+
+model RolePermission {
+  id           String   @id @default(uuid())
+  roleId       String   @map("role_id")
+  permissionId String   @map("permission_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model UserRole {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  roleId    String   @map("role_id")
+  filialId  String?  @map("filial_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role   Role    @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  filial Filial? @relation(fields: [filialId], references: [id])
+
+  @@unique([userId, roleId])
+  @@map("user_roles")
+}
+
+model Session {
+  id           String    @id @default(uuid())
+  userId       String    @map("user_id")
+  tokenHash    String    @map("token_hash")
+  ipAddress    String?   @map("ip_address")
+  userAgent    String?   @map("user_agent")
+  expiresAt    DateTime  @map("expires_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  terminatedAt DateTime? @map("terminated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tokenHash])
+  @@map("sessions")
+}
+
+model Client {
+  id            String    @id @default(uuid())
+  type          String
+  name          String
+  inn           String    @unique
+  kpp           String?
+  ogrn          String?
+  legalAddress  String?   @map("legal_address")
+  postalAddress String?   @map("postal_address")
+  phone         String?
+  email         String?
+  website       String?
+  contactName   String?   @map("contact_name")
+  contactPhone  String?   @map("contact_phone")
+  contactEmail  String?   @map("contact_email")
+  clientGroup   String?   @map("client_group")
+  creditLimit   Decimal?  @map("credit_limit") @db.Decimal(15, 2)
+  paymentDays   Int?      @default(0) @map("payment_days")
+  filialId      String?   @map("filial_id")
+  isActive      Boolean   @default(true) @map("is_active")
+  createdById   String?   @map("created_by_id")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  deletedAt     DateTime? @map("deleted_at")
+
+  filial    Filial?    @relation(fields: [filialId], references: [id])
+  createdBy User?      @relation("ClientCreator", fields: [createdById], references: [id])
+  orders    Order[]
+  requests  Request[]
+  contracts Contract[]
+
+  @@index([filialId])
+  @@index([isActive])
+  @@map("clients")
+}
+
+model Contract {
+  id              String    @id @default(uuid())
+  number          String    @unique
+  clientId        String    @map("client_id")
+  type            String
+  dateFrom        DateTime  @map("date_from")
+  dateTo          DateTime  @map("date_to")
+  paymentType     String?   @map("payment_type")
+  creditLimit     Decimal?  @map("credit_limit") @db.Decimal(15, 2)
+  discountPercent Decimal?  @map("discount_percent") @db.Decimal(5, 2)
+  status          String    @default("active")
+  terms           String?
+  documentUrl     String?   @map("document_url")
+  filialId        String?   @map("filial_id")
+  createdById     String?   @map("created_by_id")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  deletedAt       DateTime? @map("deleted_at")
+
+  client    Client  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  filial    Filial? @relation(fields: [filialId], references: [id])
+  createdBy User?   @relation("ContractCreator", fields: [createdById], references: [id])
+  orders    Order[]
+
+  @@index([clientId])
+  @@map("contracts")
+}
+
+model Vehicle {
+  id                 String    @id @default(uuid())
+  plateNumber        String    @unique @map("plate_number")
+  brand              String
+  model              String?
+  year               Int?
+  bodyType           String    @map("body_type")
+  capacityKg         Decimal   @map("capacity_kg") @db.Decimal(10, 2)
+  capacityM3         Decimal?  @map("capacity_m3") @db.Decimal(10, 2)
+  lengthM            Decimal?  @map("length_m") @db.Decimal(6, 2)
+  widthM             Decimal?  @map("width_m") @db.Decimal(6, 2)
+  heightM            Decimal?  @map("height_m") @db.Decimal(6, 2)
+  fuelType           String?   @map("fuel_type")
+  vin                String?   @unique
+  trailerNumber      String?   @map("trailer_number")
+  temperatureControl Boolean?  @default(false) @map("temperature_control")
+  temperatureFrom    Decimal?  @map("temperature_from") @db.Decimal(5, 2)
+  temperatureTo      Decimal?  @map("temperature_to") @db.Decimal(5, 2)
+  status             String    @default("available")
+  mileage            Decimal?  @map("mileage") @db.Decimal(10, 1)
+  nextMaintenance    DateTime? @map("next_maintenance")
+  insuranceNumber    String?   @map("insurance_number")
+  insuranceExpires   DateTime? @map("insurance_expires")
+  photoUrl           String?   @map("photo_url")
+  filialId           String?   @map("filial_id")
+  isActive           Boolean   @default(true) @map("is_active")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+  deletedAt          DateTime? @map("deleted_at")
+
+  filial Filial? @relation(fields: [filialId], references: [id])
+  trips  Trip[]
+
+  @@index([filialId])
+  @@index([status])
+  @@map("vehicles")
+}
+
+model Driver {
+  id                 String    @id @default(uuid())
+  employeeId         String    @unique @map("employee_id")
+  firstName          String    @map("first_name")
+  lastName           String    @map("last_name")
+  middleName         String?   @map("middle_name")
+  birthDate          DateTime? @map("birth_date")
+  phone              String
+  email              String?
+  photoUrl           String?   @map("photo_url")
+  licenseNumber      String    @unique @map("license_number")
+  licenseCategory    String    @map("license_category")
+  licenseExpires     DateTime  @map("license_expires")
+  medicalCardNumber  String?   @map("medical_card_number")
+  medicalCardExpires DateTime? @map("medical_card_expires")
+  status             String    @default("available")
+  rating             Decimal?  @db.Decimal(3, 2)
+  notes              String?
+  filialId           String?   @map("filial_id")
+  isActive           Boolean   @default(true) @map("is_active")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+  deletedAt          DateTime? @map("deleted_at")
+
+  filial Filial? @relation(fields: [filialId], references: [id])
+  trips  Trip[]
+
+  @@index([filialId])
+  @@index([status])
+  @@map("drivers")
+}
+
+model Request {
+  id              String    @id @default(uuid())
+  number          String    @unique
+  clientId        String    @map("client_id")
+  orderId         String?   @map("order_id")
+  type            String    @default("auto")
+  cargoTypeId     String?   @map("cargo_type_id")
+  totalWeight     Decimal?  @map("total_weight") @db.Decimal(10, 3)
+  totalVolume     Decimal?  @map("total_volume") @db.Decimal(10, 3)
+  totalPieces     Int?      @map("total_pieces")
+  status          String    @default("new")
+  priority        String    @default("normal")
+  flags           Json?
+  temperatureFrom Decimal?  @map("temperature_from") @db.Decimal(5, 2)
+  temperatureTo   Decimal?  @map("temperature_to") @db.Decimal(5, 2)
+  notes           String?
+  estimatedPrice  Decimal?  @map("estimated_price") @db.Decimal(15, 2)
+  calculatedAt    DateTime? @map("calculated_at")
+  confirmedAt     DateTime? @map("confirmed_at")
+  completedAt     DateTime? @map("completed_at")
+  filialId        String?   @map("filial_id")
+  assignedToId    String?   @map("assigned_to_id")
+  createdById     String    @map("created_by_id")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  deletedAt       DateTime? @map("deleted_at")
+
+  client        Client                 @relation(fields: [clientId], references: [id])
+  order         Order?                 @relation(fields: [orderId], references: [id])
+  assignedTo    User?                  @relation("RequestOwner", fields: [assignedToId], references: [id])
+  createdBy     User                   @relation("RequestCreator", fields: [createdById], references: [id])
+  filial        Filial?                @relation(fields: [filialId], references: [id])
+  points        Point[]
+  cargoItems    CargoItem[]
+  trips         Trip[]
+  statusHistory RequestStatusHistory[]
+  comments      Comment[]
+
+  @@index([clientId])
+  @@index([status])
+  @@index([assignedToId])
+  @@index([createdById])
+  @@map("requests")
+}
+
+model Order {
+  id              String    @id @default(uuid())
+  number          String    @unique
+  clientId        String    @map("client_id")
+  contractId      String?   @map("contract_id")
+  orderDate       DateTime  @map("order_date")
+  subtotal        Decimal   @default(0) @db.Decimal(15, 2)
+  vatRate         Decimal   @default(20) @map("vat_rate") @db.Decimal(5, 2)
+  vatAmount       Decimal   @default(0) @map("vat_amount") @db.Decimal(15, 2)
+  total           Decimal   @default(0)
+  paidAmount      Decimal   @default(0) @map("paid_amount") @db.Decimal(15, 2)
+  paymentStatus   String    @default("not_paid") @map("payment_status")
+  status          String    @default("draft")
+  paymentType     String?   @map("payment_type")
+  paymentDeadline DateTime? @map("payment_deadline")
+  notes           String?
+  filialId        String?   @map("filial_id")
+  assignedToId    String?   @map("assigned_to_id")
+  createdById     String    @map("created_by_id")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  deletedAt       DateTime? @map("deleted_at")
+
+  client     Client      @relation(fields: [clientId], references: [id])
+  contract   Contract?   @relation(fields: [contractId], references: [id])
+  filial     Filial?     @relation(fields: [filialId], references: [id])
+  assignedTo User?       @relation("OrderAssignee", fields: [assignedToId], references: [id])
+  createdBy  User        @relation("OrderCreator", fields: [createdById], references: [id])
+  items      OrderItem[]
+  payments   Payment[]
+  requests   Request[]
+
+  @@index([clientId])
+  @@index([status])
+  @@index([createdById])
+  @@map("orders")
+}
+
+model Point {
+  id              String    @id @default(uuid())
+  requestId       String    @map("request_id")
+  type            String
+  sequence        Int
+  locationId      String?   @map("location_id")
+  address         String
+  city            String?
+  region          String?
+  postalCode      String?   @map("postal_code")
+  latitude        Decimal?  @db.Decimal(10, 7)
+  longitude       Decimal?  @db.Decimal(10, 7)
+  contactName     String?   @map("contact_name")
+  contactPhone    String?   @map("contact_phone")
+  plannedDate     DateTime? @map("planned_date")
+  plannedTimeFrom String?   @map("planned_time_from")
+  plannedTimeTo   String?   @map("planned_time_to")
+  actualArrival   DateTime? @map("actual_arrival")
+  actualDeparture DateTime? @map("actual_departure")
+  instructions    String?
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  request Request @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@index([requestId])
+  @@map("points")
+}
+
+model CargoItem {
+  id                  String   @id @default(uuid())
+  requestId           String   @map("request_id")
+  description         String?
+  weight              Decimal? @db.Decimal(10, 3)
+  volume              Decimal? @db.Decimal(10, 3)
+  length              Decimal? @db.Decimal(10, 3)
+  width               Decimal? @db.Decimal(10, 3)
+  height              Decimal? @db.Decimal(10, 3)
+  pieces              Int?
+  packageType         String?  @map("package_type")
+  isDangerous         Boolean  @default(false) @map("is_dangerous")
+  adrClass            String?  @map("adr_class")
+  isFragile           Boolean  @default(false) @map("is_fragile")
+  temperatureRequired Boolean  @default(false) @map("temperature_required")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  request Request @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@index([requestId])
+  @@map("cargo_items")
+}
+
+model Trip {
+  id                 String    @id @default(uuid())
+  number             String    @unique
+  requestId          String    @map("request_id")
+  vehicleId          String?   @map("vehicle_id")
+  driverId           String?   @map("driver_id")
+  status             String    @default("scheduled")
+  plannedStart       DateTime? @map("planned_start")
+  actualStart        DateTime? @map("actual_start")
+  plannedEnd         DateTime? @map("planned_end")
+  actualEnd          DateTime? @map("actual_end")
+  plannedDistance    Decimal?  @map("planned_distance") @db.Decimal(10, 2)
+  actualDistance     Decimal?  @map("actual_distance") @db.Decimal(10, 2)
+  plannedDuration    Int?      @map("planned_duration")
+  actualDuration     Int?      @map("actual_duration")
+  plannedFuel        Decimal?  @map("planned_fuel") @db.Decimal(8, 2)
+  actualFuel         Decimal?  @map("actual_fuel") @db.Decimal(8, 2)
+  delayMinutes       Int?      @map("delay_minutes")
+  delayReason        String?   @map("delay_reason")
+  cancellationReason String?   @map("cancellation_reason")
+  notes              String?
+  assignedById       String?   @map("assigned_by_id")
+  completedById      String?   @map("completed_by_id")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+  deletedAt          DateTime? @map("deleted_at")
+
+  request       Request             @relation(fields: [requestId], references: [id])
+  vehicle       Vehicle?            @relation(fields: [vehicleId], references: [id])
+  driver        Driver?             @relation(fields: [driverId], references: [id])
+  assignedBy    User?               @relation("TripAssignee", fields: [assignedById], references: [id])
+  completedBy   User?               @relation("TripCompleter", fields: [completedById], references: [id])
+  checkpoints   Checkpoint[]
+  statusHistory TripStatusHistory[]
+  comments      Comment[]
+
+  @@index([requestId])
+  @@index([vehicleId])
+  @@index([driverId])
+  @@index([status])
+  @@map("trips")
+}
+
+model Checkpoint {
+  id            String    @id @default(uuid())
+  tripId        String    @map("trip_id")
+  pointId       String?   @map("point_id")
+  type          String
+  sequence      Int
+  name          String
+  address       String?
+  latitude      Decimal?  @db.Decimal(10, 7)
+  longitude     Decimal?  @db.Decimal(10, 7)
+  plannedTime   DateTime? @map("planned_time")
+  actualTime    DateTime? @map("actual_time")
+  isCompleted   Boolean   @default(false) @map("is_completed")
+  completedAt   DateTime? @map("completed_at")
+  completedById String?   @map("completed_by_id")
+  notes         String?
+  photoUrl      String?   @map("photo_url")
+  signatureUrl  String?   @map("signature_url")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  trip        Trip  @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  completedBy User? @relation(fields: [completedById], references: [id])
+
+  @@index([tripId])
+  @@map("checkpoints")
+}
+
+model OrderItem {
+  id           String   @id @default(uuid())
+  orderId      String   @map("order_id")
+  description  String
+  quantity     Decimal  @default(1) @db.Decimal(10, 3)
+  unit         String   @default("услуга")
+  pricePerUnit Decimal  @map("price_per_unit") @db.Decimal(15, 2)
+  total        Decimal  @db.Decimal(15, 2)
+  vatRate      Decimal? @map("vat_rate") @db.Decimal(5, 2)
+  notes        String?
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@map("order_items")
+}
+
+model Payment {
+  id             String    @id @default(uuid())
+  orderId        String    @map("order_id")
+  amount         Decimal   @db.Decimal(15, 2)
+  paymentDate    DateTime  @map("payment_date")
+  paymentMethod  String?   @map("payment_method")
+  documentNumber String?   @map("document_number")
+  documentUrl    String?   @map("document_url")
+  status         String    @default("pending")
+  confirmedById  String?   @map("confirmed_by_id")
+  confirmedAt    DateTime? @map("confirmed_at")
+  notes          String?
+  createdById    String    @map("created_by_id")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  order       Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  confirmedBy User? @relation("PaymentConfirmer", fields: [confirmedById], references: [id])
+  createdBy   User  @relation("PaymentCreator", fields: [createdById], references: [id])
+
+  @@index([orderId])
+  @@map("payments")
+}
+
+model Notification {
+  id         String    @id @default(uuid())
+  userId     String    @map("user_id")
+  type       String
+  title      String
+  body       String?
+  entityType String?   @map("entity_type")
+  entityId   String?   @map("entity_id")
+  link       String?
+  isRead     Boolean   @default(false) @map("is_read")
+  readAt     DateTime? @map("read_at")
+  channel    String    @default("system")
+  status     String    @default("pending")
+  sentAt     DateTime? @map("sent_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isRead])
+  @@map("notifications")
+}
+
+model RequestStatusHistory {
+  id          String   @id @default(uuid())
+  requestId   String   @map("request_id")
+  status      String
+  changedById String   @map("changed_by_id")
+  changedAt   DateTime @default(now()) @map("changed_at")
+  reason      String?
+  comment     String?
+
+  request   Request @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  changedBy User    @relation(fields: [changedById], references: [id])
+
+  @@index([requestId])
+  @@map("request_status_history")
+}
+
+model TripStatusHistory {
+  id           String   @id @default(uuid())
+  tripId       String   @map("trip_id")
+  status       String
+  delayMinutes Int?     @map("delay_minutes")
+  reason       String?
+  changedById  String   @map("changed_by_id")
+  changedAt    DateTime @default(now()) @map("changed_at")
+
+  trip      Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  changedBy User @relation(fields: [changedById], references: [id])
+
+  @@index([tripId])
+  @@map("trip_status_history")
+}
+
+model Location {
+  id          String   @id @default(uuid())
+  name        String
+  type        String   @default("warehouse")
+  address     String
+  city        String?
+  region      String?
+  postalCode  String?  @map("postal_code")
+  latitude    Decimal? @db.Decimal(10, 7)
+  longitude   Decimal? @db.Decimal(10, 7)
+  contactName String?  @map("contact_name")
+  contactPhone String? @map("contact_phone")
+  contactEmail String? @map("contact_email")
+  instructions String? @map("instructions")
+  workingHours String? @map("working_hours")
+  filialId    String?  @map("filial_id")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  filial Filial? @relation(fields: [filialId], references: [id])
+
+  @@index([filialId])
+  @@index([city])
+  @@map("locations")
+}
+
+model CargoType {
+  id            String   @id @default(uuid())
+  code         String   @unique
+  name         String
+  description  String?
+  category     String   @default("general")
+  isHazardous  Boolean  @default(false) @map("is_hazardous")
+  requiresTemp  Boolean  @default(false) @map("requires_temp")
+  minTemp      Decimal? @map("min_temp") @db.Decimal(5, 2)
+  maxTemp      Decimal? @map("max_temp") @db.Decimal(5, 2)
+  packagingOptions Json? @map("packaging_options")
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("cargo_types")
+}
+
+model Tariff {
+  id             String   @id @default(uuid())
+  name           String
+  code           String   @unique
+  routeFrom      String   @map("route_from")
+  routeTo        String   @map("route_to")
+  vehicleType    String   @map("vehicle_type")
+  pricePerKm     Decimal  @map("price_per_km") @db.Decimal(10, 2)
+  pricePerTon    Decimal? @map("price_per_ton") @db.Decimal(10, 2)
+  minimumPrice   Decimal? @map("minimum_price") @db.Decimal(15, 2)
+  fuelSurcharge Decimal? @map("fuel_surcharge") @db.Decimal(5, 2)
+  distanceKm     Int?     @map("distance_km")
+  estimatedHours Int?     @map("estimated_hours")
+  isActive      Boolean  @default(true) @map("is_active")
+  validFrom     DateTime @map("valid_from")
+  validTo       DateTime? @map("valid_to")
+  filialId      String?  @map("filial_id")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  filial Filial? @relation(fields: [filialId], references: [id])
+
+  @@index([routeFrom, routeTo])
+  @@index([filialId])
+  @@map("tariffs")
+}
+
+model Warehouse {
+  id          String   @id @default(uuid())
+  name        String
+  code        String   @unique
+  address     String
+  city        String?
+  region      String?
+  postalCode  String?  @map("postal_code")
+  latitude    Decimal? @db.Decimal(10, 7)
+  longitude   Decimal? @db.Decimal(10, 7)
+  contactName String?  @map("contact_name")
+  contactPhone String? @map("contact_phone")
+  capacity    Decimal? @db.Decimal(15, 2)
+  currentLoad Decimal? @default(0) @map("current_load") @db.Decimal(15, 2)
+  workingHours String? @map("working_hours")
+  filialId    String?  @map("filial_id")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  filial Filial? @relation(fields: [filialId], references: [id])
+
+  @@index([filialId])
+  @@map("warehouses")
+}
+
+model Comment {
+  id         String   @id @default(uuid())
+  text       String
+  entityType String   @map("entity_type")
+  entityId   String   @map("entity_id")
+  authorId   String   @map("author_id")
+  isSystem   Boolean  @default(false) @map("is_system")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  Request   Request? @relation(fields: [requestId], references: [id])
+  requestId String?
+  Trip      Trip?    @relation(fields: [tripId], references: [id])
+  tripId    String?
+
+  @@index([entityType, entityId])
+  @@index([authorId])
+  @@map("comments")
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String?  @map("user_id")
+  action     String
+  entityType String?  @map("entity_type")
+  entityId   String?  @map("entity_id")
+  oldValues  Json?
+  newValues  Json?
+  ipAddress  String?  @map("ip_address")
+  userAgent  String?  @map("user_agent")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model SystemSetting {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  title       String
+  section     String
+  value       Json
+  description String?
+  isSystem    Boolean  @default(false) @map("is_system")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@index([section])
+  @@map("system_settings")
+}
+
+model File {
+  id             String   @id @default(uuid())
+  title          String
+  fileName       String   @map("file_name")
+  originalName   String   @map("original_name")
+  storagePath    String   @map("storage_path")
+  mimeType       String   @map("mime_type")
+  size           Int
+  checksum       String?  @map("checksum")
+  url            String
+  entityType     String?  @map("entity_type")
+  entityId       String?  @map("entity_id")
+  documentType   String?  @map("document_type")
+  category       String?
+  tags           Json?
+  metadata       Json?
+  description    String?
+  isConfidential Boolean  @default(false) @map("is_confidential")
+  uploadedById   String?  @map("uploaded_by_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  uploadedBy User? @relation(fields: [uploadedById], references: [id])
+
+  @@index([entityType, entityId])
+  @@index([uploadedById])
+  @@map("files")
+}
+
+model Recipient {
+  id           String    @id @default(uuid())
+  name         String
+  code         String    @unique
+  inn          String?
+  kpp          String?
+  address      String
+  city         String?
+  region       String?
+  postalCode   String?   @map("postal_code")
+  contactName  String?   @map("contact_name")
+  contactPhone String?   @map("contact_phone")
+  contactEmail String?   @map("contact_email")
+  notes        String?
+  isActive     Boolean   @default(true) @map("is_active")
+  filialId     String?   @map("filial_id")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  filial Filial? @relation(fields: [filialId], references: [id])
+
+  @@index([filialId])
+  @@index([city])
+  @@map("recipients")
+}
+
+model VehicleType {
+  id          String   @id @default(uuid())
+  code        String   @unique
+  name        String
+  description String?
+  category    String   @default("general")
+  capacityKg  Decimal? @map("capacity_kg") @db.Decimal(10, 2)
+  capacityM3  Decimal? @map("capacity_m3") @db.Decimal(10, 2)
+  hasTrailer  Boolean  @default(false) @map("has_trailer")
+  isActive    Boolean  @default(true) @map("is_active")
+  sortOrder   Int      @default(0) @map("sort_order")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("vehicle_types")
+}
+
+model FuelType {
+  id          String   @id @default(uuid())
+  code        String   @unique
+  name        String
+  description String?
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("fuel_types")
+}
+
+model Status {
+  id          String   @id @default(uuid())
+  entityType  String   @map("entity_type")
+  code        String
+  name        String
+  description String?
+  color       String?
+  icon        String?
+  isSystem    Boolean  @default(false) @map("is_system")
+  isActive    Boolean  @default(true) @map("is_active")
+  sortOrder   Int      @default(0) @map("sort_order")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@unique([entityType, code])
+  @@index([entityType])
+  @@map("statuses")
+}
+
+model Flag {
+  id          String   @id @default(uuid())
+  code        String   @unique
+  name        String
+  description String?
+  color       String?
+  icon        String?
+  entityType  String   @map("entity_type")
+  isSystem    Boolean  @default(false) @map("is_system")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@index([entityType])
+  @@map("flags")
+}
+
+model Classifier {
+  id          String   @id @default(uuid())
+  type        String
+  code        String
+  name        String
+  description String?
+  value       String?
+  parentId    String?  @map("parent_id")
+  isSystem    Boolean  @default(false) @map("is_system")
+  isActive    Boolean  @default(true) @map("is_active")
+  sortOrder   Int      @default(0) @map("sort_order")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  parent   Classifier?  @relation("ClassifierHierarchy", fields: [parentId], references: [id])
+  children Classifier[] @relation("ClassifierHierarchy")
+
+  @@unique([type, code])
+  @@index([type])
+  @@map("classifiers")
+}
+
+model ProblemReason {
+  id          String   @id @default(uuid())
+  code        String   @unique
+  name        String
+  description String?
+  category    String?
+  severity    String   @default("medium")
+  requiresApproval Boolean @default(false) @map("requires_approval")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("problem_reasons")
+}

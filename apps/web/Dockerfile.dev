@@ -1,0 +1,17 @@
+FROM node:20-alpine AS development
+WORKDIR /app
+
+ENV NODE_ENV=development
+ENV PORT=3000
+
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY apps/web/package.json ./apps/web/
+
+RUN corepack enable && pnpm install --frozen-lockfile
+
+COPY --from=0 /app/node_modules ./node_modules
+COPY . .
+
+EXPOSE 3000
+
+CMD ["pnpm", "--filter", "@logistics-crm/web", "dev"]
