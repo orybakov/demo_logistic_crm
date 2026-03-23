@@ -13,12 +13,12 @@ WORKDIR /app
 
 RUN corepack enable
 
-ENV DATABASE_URL=postgresql://postgres:postgres@localhost:5432/logistics_crm
-
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-RUN pnpm --filter @logistics-crm/api db:generate
+COPY apps/api/.env.example ./apps/api/.env
+
+RUN pnpm --filter @logistics-crm/api db:generate && rm apps/api/.env
 RUN pnpm build --filter=@logistics-crm/api
 
 FROM base AS development
