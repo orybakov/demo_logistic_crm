@@ -18,7 +18,7 @@ ENV DATABASE_URL=postgresql://postgres:postgres@localhost:5432/logistics_crm
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-RUN printf 'DATABASE_URL=%s\n' "$DATABASE_URL" > apps/api/.env && pnpm --filter @logistics-crm/api db:generate && rm apps/api/.env
+RUN pnpm --filter @logistics-crm/api db:generate
 RUN pnpm build --filter=@logistics-crm/api
 
 FROM base AS development
