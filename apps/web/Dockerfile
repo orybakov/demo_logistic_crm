@@ -35,4 +35,4 @@ COPY --from=builder /app/apps/web/package.json ./package.json
 
 EXPOSE 3000
 
-CMD ["pnpm", "--filter", "@logistics-crm/web", "start"]
+CMD ["node", "node_modules/next/dist/bin/next", "start", "-p", "3000", "-H", "0.0.0.0"]
