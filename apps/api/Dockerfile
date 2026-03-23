@@ -16,6 +16,7 @@ RUN corepack enable
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
+RUN pnpm --filter @logistics-crm/api db:generate
 RUN pnpm build --filter=@logistics-crm/api
 
 FROM base AS development
